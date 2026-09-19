@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, Link, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import './App.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://support-crm-backend-a8p4.onrender.com';
 const statusOptions = ['Open', 'In Progress', 'Closed'];
 
 const statusColors = {
@@ -21,9 +21,11 @@ const formatDate = (value) => {
 };
 
 async function fetchJson(url, options = {}) {
+  const token = localStorage.getItem('support_crm_token');
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
     ...options,
@@ -42,11 +44,96 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/new" element={<CreateTicketPage />} />
-        <Route path="/tickets/:ticketId" element={<TicketDetailsPage />} />
+        <Route path="/login" element={<AuthPage mode="login" />} />
+        <Route path="/register" element={<AuthPage mode="register" />} />
+        <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/new" element={<ProtectedRoute><CreateTicketPage /></ProtectedRoute>} />
+        <Route path="/tickets/:ticketId" element={<ProtectedRoute><TicketDetailsPage /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
+  );
+}
+
+function ProtectedRoute({ children }) {
+  const token = localStorage.getItem('support_crm_token');
+  return token ? children : <Navigate to="/login" replace />;
+}
+
+function AuthPage({ mode }) {
+  const navigate = useNavigate();
+  const isLogin = mode === 'login';
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetchJson(`${API_BASE}/api/auth/${isLogin ? 'login' : 'register'}`, {
+        method: 'POST',
+        body: JSON.stringify(isLogin ? { email: form.email, password: form.password } : form),
+      });
+
+      localStorage.setItem('support_crm_token', response.token);
+      localStorage.setItem('support_crm_user', JSON.stringify(response.user));
+      navigate('/', { replace: true });
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="auth-shell">
+      <section className="auth-intro">
+        <div className="brand-block auth-brand">
+          <div className="brand-mark">✦</div>
+          <div>
+            <p className="brand-name">SUPPORT</p>
+            <h2>CRM</h2>
+          </div>
+        </div>
+        <p className="eyebrow">Support workspace</p>
+        <h1>{isLogin ? 'Welcome back.' : 'Build a calmer support desk.'}</h1>
+        <p>Keep every customer conversation, ticket update, and resolution in one focused workspace.</p>
+      </section>
+
+      <section className="auth-card">
+        <p className="eyebrow">{isLogin ? 'Sign in' : 'Create account'}</p>
+        <h2>{isLogin ? 'Access your dashboard' : 'Start managing tickets'}</h2>
+        <p className="auth-subtitle">{isLogin ? 'Use your support account to continue.' : 'Create a support agent account in seconds.'}</p>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          {!isLogin && (
+            <label>
+              Full name
+              <input autoComplete="name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
+            </label>
+          )}
+          <label>
+            Email
+            <input type="email" autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
+          </label>
+          <label>
+            Password
+            <input type="password" autoComplete={isLogin ? 'current-password' : 'new-password'} minLength={6} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
+          </label>
+          {error && <div className="message error-message">{error}</div>}
+          <button type="submit" className="primary-btn auth-submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Please wait...' : isLogin ? 'Sign in' : 'Create account'}
+          </button>
+        </form>
+
+        <p className="auth-switch">
+          {isLogin ? 'New to Support CRM?' : 'Already have an account?'}{' '}
+          <Link to={isLogin ? '/register' : '/login'}>{isLogin ? 'Create an account' : 'Sign in'}</Link>
+        </p>
+      </section>
+    </main>
   );
 }
 
@@ -59,6 +146,7 @@ function DashboardPage() {
   const [showCreateTicket, setShowCreateTicket] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const user = JSON.parse(localStorage.getItem('support_crm_user') || 'null');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -152,6 +240,12 @@ function DashboardPage() {
     setSearchTerm('');
   };
 
+  const logout = () => {
+    localStorage.removeItem('support_crm_token');
+    localStorage.removeItem('support_crm_user');
+    window.location.href = '/login';
+  };
+
   return (
     <div className="support-app-shell">
       <aside className="sidebar">
@@ -193,6 +287,10 @@ function DashboardPage() {
           <button type="button" className="primary-btn" onClick={() => setShowCreateTicket(true)}>
             + New Ticket
           </button>
+          <div className="user-menu">
+            <span>{user?.name || 'Support agent'}</span>
+            <button type="button" className="logout-btn" onClick={logout}>Log out</button>
+          </div>
         </header>
 
         <section className="stats-grid" aria-label="Ticket summary">

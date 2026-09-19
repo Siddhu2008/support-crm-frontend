@@ -16,6 +16,9 @@ The interface includes:
 - Ticket detail pages with status updates and internal notes
 - Customer directory generated from ticket records
 - Reports view with resolution rate and status distribution
+- Login and registration with persisted JWT sessions
+- Protected dashboard, ticket, and detail routes
+- Logout control for the active support user
 - Loading, empty, validation, error, and success states
 - Responsive card-based ticket layout
 
@@ -51,16 +54,16 @@ From this directory, install the frontend dependencies:
 npm install
 ```
 
-The frontend uses this API URL by default:
+The frontend uses the deployed Render API by default:
 
 ```text
-http://localhost:5000
+https://support-crm-backend-a8p4.onrender.com
 ```
 
 To use another backend URL, create `frontend/.env`:
 
 ```env
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=https://support-crm-backend-a8p4.onrender.com
 ```
 
 ## Running the Frontend
@@ -85,6 +88,10 @@ Preview the production build locally:
 npm run preview
 ```
 ## Main User Flows
+
+### Authentication
+
+New users can register from `/register`, and existing users can sign in from `/login`. The frontend stores the returned JWT in browser storage and includes it in protected API requests. Logging out removes the local session.
 
 ### Dashboard
 
